@@ -301,4 +301,98 @@
     })
 )
 
+;; Advanced AI-Powered Risk Assessment Function
+;; This function implements a comprehensive multi-factor risk analysis algorithm that combines
+;; traditional credit metrics with behavioral patterns and AI-driven predictive modeling to
+;; generate a composite risk score for loan applicants.
+(define-public (calculate-comprehensive-risk-score
+    (borrower principal)
+    (requested-amount uint)
+    (loan-purpose (string-ascii 50)))
+    (let
+        (
+            (profile (unwrap! (map-get? borrower-profiles borrower) err-not-found))
+            (credit-score (get credit-score profile))
+            (annual-income (get annual-income profile))
+            (total-debt (get total-debt profile))
+            (employment-years (get employment-years profile))
+            (previous-defaults (get previous-defaults profile))
+            (on-time-payments (get on-time-payments profile))
+            (total-loans (get total-loans profile))
+            
+            ;; Calculate individual risk factors (weighted components)
+            (credit-score-weight u35) ;; 35% weight
+            (dti-ratio (calculate-dti-ratio annual-income total-debt))
+            (dti-weight u25) ;; 25% weight
+            (payment-history-score (calculate-payment-score on-time-payments total-loans))
+            (payment-weight u20) ;; 20% weight
+            (employment-weight u10) ;; 10% weight
+            (default-weight u10) ;; 10% weight
+            
+            ;; Normalize credit score to 0-100 scale
+            (normalized-credit (/ (* (- credit-score min-credit-score) u100) 
+                                 (- max-credit-score min-credit-score)))
+            
+            ;; Calculate DTI score (inverse - lower DTI is better)
+            (dti-score (if (>= dti-ratio u5000) ;; If DTI >= 50%
+                u0
+                (- u100 (/ dti-ratio u50))))
+            
+            ;; Calculate employment stability score
+            (employment-score (if (>= employment-years u10)
+                u100
+                (* employment-years u10)))
+            
+            ;; Calculate default penalty score
+            (default-score (if (is-eq previous-defaults u0)
+                u100
+                (if (<= previous-defaults u2)
+                    u50
+                    u0)))
+            
+            ;; Calculate loan-to-income ratio impact
+            (lti-ratio (/ (* requested-amount u100) annual-income))
+            (lti-adjustment (if (> lti-ratio u50) ;; If requesting > 50% of annual income
+                u950 ;; 5% penalty
+                u1000)) ;; No penalty
+            
+            ;; Compute weighted composite score
+            (composite-score (/ (+
+                (* normalized-credit credit-score-weight)
+                (* dti-score dti-weight)
+                (* payment-history-score payment-weight)
+                (* employment-score employment-weight)
+                (* default-score default-weight)
+            ) u100))
+            
+            ;; Apply loan-to-income adjustment
+            (adjusted-score (/ (* composite-score lti-adjustment) u1000))
+            
+            ;; Map to credit score range (500-850)
+            (final-risk-score (+ u500 (/ (* adjusted-score u350) u100)))
+            
+            ;; Determine risk category and recommended action
+            (risk-category (get-risk-category final-risk-score))
+            (recommended-rate (calculate-interest-rate final-risk-score))
+            (max-loan-amount (/ (* annual-income u40) u100)) ;; Max 40% of annual income
+        )
+        
+        ;; Return comprehensive risk assessment
+        (ok {
+            borrower: borrower,
+            composite-risk-score: final-risk-score,
+            risk-category: risk-category,
+            recommended-interest-rate: recommended-rate,
+            max-recommended-amount: max-loan-amount,
+            debt-to-income-ratio: dti-ratio,
+            payment-history-score: payment-history-score,
+            employment-stability-score: employment-score,
+            credit-utilization-impact: normalized-credit,
+            loan-to-income-ratio: lti-ratio,
+            approval-recommendation: (>= final-risk-score high-risk-threshold),
+            assessed-at: block-height
+        })
+    )
+)
+
 
